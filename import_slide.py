@@ -1,4 +1,10 @@
+# along with open cv a
+
 import sys, cv2, numpy as np
+from PIL import Image
+#from pillow_heif import register_heif_opener
+import pathlib
+import logging
 
 def order_pts(pts):
     rect = np.zeros((4, 2), dtype="float32")
@@ -40,15 +46,16 @@ def find_screen_quad(img):
     cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
 
     for c in cnts[:10]:
+        print(f'contour area: {cv2.contourArea(c)}')
         peri = cv2.arcLength(c, True)
         approx = cv2.approxPolyDP(c, 0.02*peri, True)
+        print(len(approx))
         if len(approx) == 4:
             pts = approx.reshape(4,2).astype("float32")
             pts /= scale
-
-    return pts
-
-#return None
+            print(pts)
+            return pts
+    return None
 
 def enhance(img):
     # White balance (try xphoto gray-world if available)
@@ -75,12 +82,18 @@ def enhance(img):
 
 def trim_safe(img, pct=0.02):
     h, w = img.shape[:2]
-    dy, dx = int(hpct), int(wpct)
+    dy, dx = int(h*pct), int(w*pct)
     return img[dy:h-dy, dx:w-dx]
 
 
 def main(inp, outp):
-    img = cv2.imread(inp)
+    if pathlib.Path(inp).suffix == 'heic':
+        #register_heif_opener()
+        pil_image = Image.open(inp)
+        img = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+    else:
+        img = cv2.imread(inp)
+
     if img is None:
         raise SystemExit("Could not read input image.")
     quad = find_screen_quad(img)
@@ -101,6 +114,7 @@ def main(inp, outp):
         if warped.shape[0] > warped.shape[1]:
             warped = cv2.rotate(warped, cv2.ROTATE_90_CLOCKWISE)
 
+    #cleaned = warped
     cleaned = enhance(warped)
     cv2.imwrite(outp, cleaned)
     print(f"Saved: {outp}")
